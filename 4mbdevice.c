@@ -11,9 +11,10 @@
 #define MAJOR_NUMBER 66
 #define DRIVER_AUTHOR "Rangarajan Kesavan A0163130X"
 #define DRIVER_DESC "Assignemnt 4 - 4mb character device test"
-#define BUF_LEN 1
+#define BUF_LEN 4194304
 
-static char Message[BUF_LEN];
+static char data[BUF_LEN];;
+static char *data_ptr;
 
 MODULE_LICENSE("GPL");
 
@@ -31,14 +32,12 @@ static void testdevice_exit (void);
 
 /* definition of file operation structure */
 
-struct file_operations onebyte_fops = {
+struct file_operations testdevice_fops = {
 	read:	testdevice_read,
 	write:	testdevice_write,
 	open:	testdevice_open,
 	release:testdevice_release
 };
-
-static char *testdevice_data;
 
 int testdevice_open (struct inode *inode, struct file *filep) {	
 	try_module_get(THIS_MODULE);
@@ -46,45 +45,41 @@ int testdevice_open (struct inode *inode, struct file *filep) {
 }
 
 int testdevice_release (struct inode *inode, struct file *filep) {
-	
 	module_put(THIS_MODULE);
 	return 0;
 }
 
+/*Read from the device and print the data in the user terminal*/
 ssize_t testdevice_read (struct file *filep, char __user * buf, size_t count, loff_t *f_pos) {
 	
 	int bytes_read = 0;
-	if (*testdevice_data == 0){
+	if (*data_ptr == 0){
 		return 0;
 	}
-	while ( count && *testdevice_data){
-		put_user (*(testdevice_data++), buf++);
+	while ( count  && *data_ptr){
+		put_user (*(data_ptr++), buf++);
 		count--;
 		bytes_read++;
 	}
-	
-	printk (KERN_INFO "%d bytes are read from device\n", bytes_read);
+	printk (KERN_INFO "%d bytes are read from device\n", bytes_read-1);
 	return bytes_read;
 }
 
+/*Write data to the device, effectively here its like writing to a file*/
 ssize_t testdevice_write (struct file *filep, const char __user * buf, size_t count, loff_t *f_pos) {
 	
-	int i = 0;
-	if ( count > 1 ){
-		printk (KERN_INFO "More than one character given, only first character will be written to device\n");
-	}
-
-	for (i = 0; i < 1 && i < BUF_LEN; i++){
-		get_user (Message[i], buf);
+	int i;
+	
+	for (i = 0; i < count && i < BUF_LEN; i++){
+		get_user (data[i], buf + i);
 	}
 	
-	device_data = Message;
-
-	printk (KERN_INFO "%d characters written to onebyte device\n", i);
+	data_ptr = data;
+	printk (KERN_INFO "%d bytes written to 4mb device\n", i-1);
 	return i;
 }
 
-static int onebyte_init (void) {
+static int testdevice_init (void) {
 	int result;
 	//registering device
 	result = register_chrdev(MAJOR_NUMBER, "testdevice", &testdevice_fops);
@@ -92,11 +87,11 @@ static int onebyte_init (void) {
 		return result;
 	}
 
-	//allocate one byte memory for storage with kmalloc
+	//allocate 4MB for storage with kmalloc
 	//to release memory use kfree
 
-	testdevice_data = kmalloc(sizeof(char), GFP_KERNEL);
-	if(!testdevice_data) {
+	data_ptr = kmalloc(4194304, GFP_KERNEL);
+	if(!data_ptr) {
 		testdevice_exit();
 		//if any error in allocation of memory return negative
 		return -ENOMEM;
@@ -109,10 +104,9 @@ static int onebyte_init (void) {
 
 static void testdevice_exit(void) {
 	//free the memory data and unregister the device
-	if (testdevice_data) {
-		kfree(testdevice_data);
-		testdevice_data = NULL;
-	}
+	//if (data_ptr) {
+	//	kfree(data_ptr);
+	//}
 
 	unregister_chrdev (MAJOR_NUMBER, "testdevice");
 	printk (KERN_ALERT "Test 4mb device is now unloaded\n");
