@@ -19,6 +19,8 @@ ioctl_set_msg (int file_desc, char *user_msg){
 	if (ret_val < 0){
 		printf("ioctl_set_msg failed:%d\n", ret_val);
 		exit(-1);
+	}else{
+		printf("New dev_msg set in device driver by IOW\n");
 	}
 }
 
@@ -34,14 +36,14 @@ ioctl_get_msg (int file_desc){
 		exit(-1);
 	}
 
-	printf("get_msg message:%s\n", user_msg);
+	printf("Gettin msg from device with IOR:\n%s\n", user_msg);
 }
 
-ioctl_get_nth_byte(int file_desc){
+ioctl_get_nth_byte(int file_desc, char *user_msg){
 	int i;
 	char c;
 
-	printf("get nth_byte_message:");
+	printf("Executing _IOWR  original user_msg is :\n");
 
 	i = 0;
 	do {
@@ -54,14 +56,17 @@ ioctl_get_nth_byte(int file_desc){
 		
 		putchar(c);
 	} while(c != 0);
+	int ret_val;
+	ret_val = ioctl (file_desc, IOCTL_SET_MSG, user_msg);
 	putchar ('\n');
 }
 
 /* Main function to access the ioctl functions */
 
 main() {
+	printf ("Second message with IOWR\n");
 	int file_desc, ret_val;
-	char *user_msg = "Message passed by ioctl\n";
+	char *user_msg = "Goodbye world,from ioctl user program\n";
 
 	file_desc = open(DEVICE_FILE_NAME, 0);
 	if (file_desc < 0){
@@ -69,9 +74,9 @@ main() {
 		exit(-1);
 	}
 
-	ioctl_set_msg(file_desc, msg);	
+	ioctl_set_msg(file_desc, user_msg);	
+	ioctl_get_nth_byte(file_desc,user_msg);	
 	ioctl_get_msg(file_desc);
-	ioctl_get_nth_byte(file_desc);
 	
 	close(file_desc);
 }

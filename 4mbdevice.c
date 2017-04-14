@@ -11,21 +11,19 @@
 #include <linux/cdev.h>
 #include <linux/ioctl.h>
 
-//#include "testdevice.h"
+#include "testdevice.h"
 #define MAJOR_NUMBER 66
 #define DRIVER_AUTHOR "Rangarajan Kesavan A0163130X"
 #define DRIVER_DESC "Assignment 4 - 4mb character device test"
 #define BUF_LEN 1024
 //#define BUF_LEN 4194304
-#define SCULL_IOC_MAGIC 'k'
-#define SCULL_HELLO _IO(SCULL_IOC_MAGIC, 1)
 
 MODULE_LICENSE("GPL");
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
 
-static char msg[BUF_LEN];
+static char dev_msg[BUF_LEN];
 static char *msg_ptr;
 
 /* forward declaration */
@@ -35,8 +33,7 @@ int testdevice_release (struct inode *inode, struct file *filep);
 ssize_t testdevice_read (struct file *filep, char __user * buf, size_t count, loff_t *f_pos);
 ssize_t testdevice_write (struct file *filep, const char __user * buf, size_t count, loff_t *f_pos);
 loff_t testdevice_llseek (struct file *filp, loff_t off, int whence);
-//int testdevice_ioctl (struct inode *inode, struct file *filep, unsigned int ioctl_num, unsigned long ioctl_param);
-long testdevice_ioctl(struct file *filp, unsigned int cmd, unsigned long arg);
+long testdevice_ioctl (struct file *filep, unsigned int ioctl_num, unsigned long ioctl_param);
 static void testdevice_exit (void);
 
 /* definition of file operation structure */
@@ -65,8 +62,8 @@ ssize_t testdevice_read (struct file *filep, char __user * buf, size_t count, lo
 
 	int bytes_read = 0;
 	
-	//if (*msg_ptr == 0)
-	//	return 0;
+	if (*msg_ptr == 0)
+		return 0;
 	
 	while (count && *msg_ptr){
 		put_user (*(msg_ptr++), buf++);
@@ -74,7 +71,7 @@ ssize_t testdevice_read (struct file *filep, char __user * buf, size_t count, lo
 		bytes_read++;
 	}
 
-	printk (KERN_INFO "Read %d bytes from the testdevice\n", bytes_read);
+	printk (KERN_INFO "Read %d bytes from the testdevice with ioctl\n", bytes_read);
 	return bytes_read;
 
 }
@@ -85,17 +82,18 @@ ssize_t testdevice_write (struct file *filep, const char __user * buf, size_t co
 	int i;
 
 	for (i=0; i < count && i < BUF_LEN; i++)
-		get_user(msg[i], buf+i);
+		get_user(dev_msg[i], buf+i);
 	
-	msg_ptr = msg;
-
-	printk (KERN_INFO "%d bytes written to the testdevice\n", i);
+	msg_ptr = dev_msg;
+	i--;
+	
+	printk (KERN_INFO "%d bytes written to the testdevice with ioctl\n", i);
 	return i;
 
 }
 
-/*
-int testdevice_ioctl (struct inode *inode, struct file *filep, unsigned int ioctl_num, unsigned long ioctl_param) {
+
+long testdevice_ioctl (struct file *filep, unsigned int ioctl_num, unsigned long ioctl_param) {
 	int i;
 	char *temp;
 	char ch;
@@ -111,13 +109,13 @@ int testdevice_ioctl (struct inode *inode, struct file *filep, unsigned int ioct
 		for (i=0; ch && i < BUF_LEN; i++, temp++)
 			get_user(ch, temp);
 
-		testdevice_write(file, (char *)ioctl_param, i, 0);
+		testdevice_write(filep, (char *)ioctl_param, i, 0);
 		break;
 	
 	case IOCTL_GET_MSG:
 		// Give the current message to the calling process - fill 
 		//pointer we got
-		i = testdevice_read(file, (char *)ioctl_param, 99, 0);
+		i = testdevice_read(filep, (char *)ioctl_param, 99, 0);
 		
 		//Put zero at end to properly terminate buffer
 		put_user('\0', (char *)ioctl_param + i);
@@ -125,39 +123,11 @@ int testdevice_ioctl (struct inode *inode, struct file *filep, unsigned int ioct
 	
 	case IOCTL_GET_NTH_BYTE:
 		//Both input and output
-		return msg[ioctl_param];
-		brea;
+		return dev_msg[ioctl_param];
+		break;
 	}
 
-	return SUCCESS;
-}
-*/
-
-long testdevice_ioctl(struct file *filp, unsigned int cmd, unsigned long arg){
-	int err = 0;
-	int retval = 0;
-
-	//extract the type and number bitfields and don't decode wrong commands
-	//return ENOTTY
-
-	if (_IOC_TYPE(cmd) != SCULL_IOC_MAGIC) return -ENOTTY;
-
-	if (_IOC_DIR(cmd) & _IOC_READ)
-		err = !access_ok(VERIFY_WRITE, (void __user*)arg, _IOC_SIZE(cmd));
-	else if (_IOC_DIR(cmd) & _IOC_WRITE)
-		err = !access_ok(VERIFY_READ, (void __user*)arg, _IOC_SIZE(cmd));
-	if (err) return -EFAULT;
-
-	switch(cmd) {
-		case SCULL_HELLO:
-			printk(KERN_WARNING "hello\n");
-			break;
-		default:
-			return -ENOTTY;
-	}
-
-	return retval;
-
+	return 0;
 }
 
 loff_t testdevice_llseek (struct file *filp, loff_t offset, int whence) {
